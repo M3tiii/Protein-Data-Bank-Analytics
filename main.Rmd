@@ -45,7 +45,7 @@ library(kableExtra)
 
 ## Wczytanie danych z pliku
 ```{r loadData, warning=FALSE, message=FALSE, results='hide', cache=TRUE, cache.lazy=FALSE}
-Source <- read_delim("C:/Users/Adaa/Desktop/R-projekt/MyData2.csv", delim=",", trim_ws=TRUE)
+Source <- read_delim("all_summary.csv", delim=",", trim_ws=TRUE)
 ```
 
 ## Usunięcie wierszy zawierających wybrane wartości res_name
