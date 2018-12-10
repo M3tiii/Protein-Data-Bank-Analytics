@@ -1,0 +1,339 @@
+---
+title: "Krystalografia białek - analiza danych"
+author: "Mateusz Głowacki"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document: 
+    keep_md: yes
+    number_sections: yes
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Analiza danych
+
+## Wykorzystane biblioteki
+1. dplyr
+2. knitr
+3. data.table
+4. ggplot2
+5. plotly
+6. tools
+7. caret
+8. readr
+9. kableExtra
+
+
+```{r loadLibrary, echo=FALSE, message=FALSE, results='hide'}
+library(dplyr)
+library(readr)
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(plotly)
+library(tools)
+library(caret)
+library(randomForest)
+library(e1071) # caret dependiencies
+library(kableExtra)
+```
+
+## Wczytanie danych z pliku
+```{r loadData, warning=FALSE, message=FALSE, results='hide', cache=TRUE, cache.lazy=FALSE}
+Source <- read_delim("C:/Users/Adaa/Desktop/R-projekt/MyData2.csv", delim=",", trim_ws=TRUE)
+```
+
+## Usunięcie wierszy zawierających wybrane wartości res_name
+```{r omitResName, cache=TRUE, cache.lazy=FALSE}
+ommitedResName <- c("UNK", "UNX", "UNL", "DUM", "N", "BLOB", "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "MSE", "PHE", "PRO", "SEC", "SER", "THR", "TRP", "TYR", "VAL", "DA", "DT", "DC", "DU", "A", "G", "T", "C", "U", "HOH", "H20", "WAT")
+
+Data <- Source %>%
+  filter(!res_name %in% ommitedResName)
+```
+
+## Kod przetwarzający brakujące dane
+```{r omitNaRows, cache=TRUE, cache.lazy=FALSE}
+Data <- Source %>% select(-one_of(c("weight_col")))
+Data <- na.omit(Data)
+```
+
+## Podsumowanie zbioru
+### Liczba kolumn
+```{r summaryCol, cache=TRUE, cache.lazy=FALSE}
+ncol(Data)
+```
+### Liczba wierszy
+```{r summaryRowsStat, cache=TRUE, cache.lazy=FALSE}
+nrow(Data)
+```
+### Statystyka
+```{r summary, cache=TRUE, cache.lazy=FALSE}
+kable(t(summary(Data))) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 12) %>%
+  scroll_box(height = "800px")
+```
+
+## Najpopularniejsze wartości res_name
+```{r pupularResName, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+popularResName <- Data %>%
+  group_by(res_name) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(50)
+
+popularResNameList <- pull(popularResName['res_name'])
+
+Data <- Data %>%
+  filter(res_name %in% popularResNameList)
+
+kable(popularResName) %>% kable_styling(font_size = 12, bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  scroll_box(height = "500px")
+```
+
+## Korelacja między zmiennymi
+```{r correlation, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+dataCor <- melt(cor(select_if(Data, is.numeric))) %>%
+  arrange(desc(value)) %>%
+  filter(Var1 != Var2) %>%
+  filter(value < 1 & value > -1) %>%
+  filter(row_number() %% 2 == 1)
+
+dataCorGroup <- dataCor %>%
+  group_by(gr=cut(value, breaks= seq(-1, 1, by = 0.05)) ) %>%
+  summarise(n= n())
+
+dataCorList <- dataCor %>%
+  arrange(desc(abs(value))) %>%
+  filter(value < 0.9999999) %>%
+  head(50)
+
+size <- length(dataCor[[1]])
+randomYAxis = rnorm(size, mean = 0, sd = 100)
+
+ggplot(
+  dataCor,
+  aes(x=value,
+      y=randomYAxis)
+) +
+  geom_point(color="blue", alpha = 0.035) +
+  xlab("korelacja") + ylab("") +
+  theme(axis.text.y=element_blank()) + scale_y_discrete(breaks=NULL)
+```
+
+50 par z największą korelacją
+
+```{r correlationResult, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+colnames(dataCorList) <- c("zmienna1", "zmienna2", "korelacja")
+kable(dataCorList) %>% kable_styling(font_size = 12, bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F)  %>%
+  scroll_box(height = "500px")
+```
+
+## Wykres rozkładu liczby atomów
+```{r plotAtomHistogram, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+ggplotly(ggplot(
+  Data,
+  aes(local_res_atom_non_h_count)
+) +
+  geom_histogram(binwidth = 1, colour="black", fill="#007bff", alpha = 0.5) +
+  xlab("liczba atomów") + ylab("liczba wystąpień"))
+```
+
+## Wykres rozkładu liczby elektronów
+```{r plotElectronHistogram, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+ggplotly(ggplot(
+  Data,
+  aes(dict_atom_non_h_electron_sum)
+) +
+  geom_histogram(binwidth = 5, colour="black", fill="#007bff", alpha = 0.5) +
+  xlab("liczba elektronów") + ylab("liczba wystąpień"))
+```
+
+## Klasy z największą niezgodnością liczby atomów i  liczby elektronów
+```{r incompatibilityAtomElectron, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+kable(Data %>%
+  select('res_name', 'local_res_atom_non_h_count', 'dict_atom_non_h_count') %>%
+  group_by(res_name) %>%
+  summarise(count = abs(mean(local_res_atom_non_h_count - dict_atom_non_h_count))) %>%
+  arrange(desc(count)) %>%
+  head(10)) %>%
+  kable_styling(font_size = 12, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+  
+kable(Data %>%
+  select('res_name', 'local_res_atom_non_h_electron_sum', 'dict_atom_non_h_electron_sum') %>%
+  group_by(res_name) %>%
+  summarise(count = abs(mean(local_res_atom_non_h_electron_sum - dict_atom_non_h_electron_sum))) %>%
+  arrange(desc(count)) %>%
+  head(10)) %>%
+  kable_styling(font_size = 12, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+## Rozkład wartości wszystkich kolumn zaczynających się od part_01
+```{r part_01, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+part_01_data <- Data %>% select(starts_with("part_01"))
+
+ggplotly(
+ggplot(stack(part_01_data), aes(x = ind, y = values)) +
+  geom_boxplot(coef = 6) +
+  stat_summary(fun.y=mean, colour="blue", geom="point", hape=18, size=3,show_guide = FALSE) +
+  stat_summary(fun.y=mean, colour="red", geom="text", show_guide = FALSE,
+               vjust=-1, aes( label=round(..y.., digits=1)))
+)
+```
+
+# Predykcja
+
+## Regresja
+
+### Przygotowanie danych
+```{r regressionData, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+X <- Data %>% select(-one_of(c(
+"weight_col",
+"title",
+"pbd_code",
+"res_id",
+"chain_id",
+"local_BAa",
+"local_NPa",
+"local_Ra",
+"local_RGa",
+"local_SRGa",
+"local_CCSa",
+"local_CCPa",
+"local_ZOa",
+"local_ZDa",
+"local_ZD_minus_a",
+"local_ZD_plus_a",
+"local_res_atom_count",
+"local_res_atom_non_h_occupancy_sum",
+"local_res_atom_non_h_electron_occupancy_sum",
+"local_res_atom_C_count",
+"local_res_atom_N_count",
+"local_res_atom_O_count",
+"local_res_atom_S_count",
+"dict_atom_non_h_count",
+"dict_atom_non_h_electron_sum",
+"dict_atom_C_count",
+"dict_atom_N_count",
+"dict_atom_O_count",
+"dict_atom_S_count",
+"fo_col",
+"fc_col",
+"weight_col",
+"grid_space",
+"solvent_radius",
+"solvent_opening_radius",
+"part_step_FoFc_std_min",
+"part_step_FoFc_std_max",
+"part_step_FoFc_std_step"
+)))
+X <- select_if(X, is.numeric)
+X <- na.omit(X)
+
+set.seed(95)
+
+nrow(X)
+```
+
+### Predykcja liczby elektronów
+```{r predictionElectronSum, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+inTrain <- createDataPartition(X$local_res_atom_non_h_electron_sum, p = 0.8, list = FALSE)
+training <- X[inTrain,]
+testing <- X[-inTrain,]
+
+preProcValues <- preProcess(training, method = c("knnImpute","center","scale"))
+train_processed <- predict(preProcValues, training)
+
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 2,
+  repeats = 5)
+
+fit <- train(local_res_atom_non_h_electron_sum ~ .,
+             data = train_processed,
+             method = "lm",
+             trControl = ctrl)
+
+fit
+
+p <- predict(fit, testing)
+summary(p)
+```
+
+### Predykcja liczby atomów
+```{r predictionAtomCount, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+inTrain <- createDataPartition(y = X$local_res_atom_non_h_count, p = 0.8, list = FALSE)
+training <- X[inTrain,]
+testing <- X[-inTrain,]
+
+preProcValues <- preProcess(training, method = c("knnImpute","center","scale"))
+train_processed <- predict(preProcValues, training)
+
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 2,
+  repeats = 5)
+
+fit <- train(local_res_atom_non_h_count ~ .,
+             data = train_processed,
+             method = "lm",
+             trControl = ctrl)
+
+fit
+
+p <- predict(fit, testing)
+summary(p)
+```
+
+## Klasyfikator przewidujący wartość atrybutu res_name
+```{r classificationAtomCount, message=FALSE}
+ X <- Data %>% select(c(
+    starts_with("part_0"),
+    "local_volume",
+    "local_electrons",
+    "local_mean",
+    "local_std",
+    "local_min",
+    "local_max",
+    "local_skewness",
+    "FoFc_mean",
+    "FoFc_std",
+    "FoFc_square_std",
+    "FoFc_min",
+    "FoFc_max",
+    "resolution",
+    "res_name"
+))
+X <- na.omit(X)
+
+set.seed(95)
+
+inTrain <- createDataPartition(y = X$res_name, p = 0.7, list = FALSE)
+training <- X[inTrain,]
+testing <- X[-inTrain,]
+
+ preProcValues <- preProcess(training, method = c("knnImpute","center","scale"))
+ train_processed <- predict(preProcValues, training)
+
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 2,
+  repeats = 5)
+
+fit = train(res_name ~ .,
+  data = train_processed,
+  method = "rf",
+  # preProc = c("center", "scale"),
+  trControl = ctrl,
+  ntree = 10
+)
+
+fit
+
+p <- predict(fit, newdata = testing)
+confusionMatrix(table(data = p, testing$res_name))
+```
