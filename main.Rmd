@@ -1,6 +1,6 @@
 ---
-title: "Krystalografia biaÅ‚ek - analiza danych"
-author: "Mateusz GÅ‚owacki"
+title: "Krystalografia bia³ek - analiza danych"
+author: "Mateusz G³owacki"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document: 
@@ -45,10 +45,10 @@ library(kableExtra)
 
 ## Wczytanie danych z pliku
 ```{r loadData, warning=FALSE, message=FALSE, results='hide', cache=TRUE, cache.lazy=FALSE}
-Source <- read_delim("all_summary.csv", delim=",", trim_ws=TRUE)
+Source <- read_delim("all_summary.csv", delim=";", trim_ws=TRUE, comment="")
 ```
 
-## UsuniÄ™cie wierszy zawierajÄ…cych wybrane wartoÅ›ci res_name
+## Usuniêcie wierszy zawieraj¹cych wybrane wartoœci res_name
 ```{r omitResName, cache=TRUE, cache.lazy=FALSE}
 ommitedResName <- c("UNK", "UNX", "UNL", "DUM", "N", "BLOB", "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "MSE", "PHE", "PRO", "SEC", "SER", "THR", "TRP", "TYR", "VAL", "DA", "DT", "DC", "DU", "A", "G", "T", "C", "U", "HOH", "H20", "WAT")
 
@@ -56,7 +56,7 @@ Data <- Source %>%
   filter(!res_name %in% ommitedResName)
 ```
 
-## Kod przetwarzajÄ…cy brakujÄ…ce dane
+## Kod przetwarzaj¹cy brakuj¹ce dane
 ```{r omitNaRows, cache=TRUE, cache.lazy=FALSE}
 Data <- Source %>% select(-one_of(c("weight_col")))
 Data <- na.omit(Data)
@@ -78,7 +78,7 @@ kable(t(summary(Data))) %>%
   scroll_box(height = "800px")
 ```
 
-## Najpopularniejsze wartoÅ›ci res_name
+## Najpopularniejsze wartoœci res_name
 ```{r pupularResName, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 popularResName <- Data %>%
   group_by(res_name) %>%
@@ -95,7 +95,7 @@ kable(popularResName) %>% kable_styling(font_size = 12, bootstrap_options = c("s
   scroll_box(height = "500px")
 ```
 
-## Korelacja miÄ™dzy zmiennymi
+## Korelacja miêdzy zmiennymi
 ```{r correlation, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 dataCor <- melt(cor(select_if(Data, is.numeric))) %>%
   arrange(desc(value)) %>%
@@ -125,7 +125,7 @@ ggplot(
   theme(axis.text.y=element_blank()) + scale_y_discrete(breaks=NULL)
 ```
 
-50 par z najwiÄ™kszÄ… korelacjÄ…
+50 par z najwiêksz¹ korelacj¹
 
 ```{r correlationResult, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 colnames(dataCorList) <- c("zmienna1", "zmienna2", "korelacja")
@@ -133,27 +133,27 @@ kable(dataCorList) %>% kable_styling(font_size = 12, bootstrap_options = c("stri
   scroll_box(height = "500px")
 ```
 
-## Wykres rozkÅ‚adu liczby atomÃ³w
-```{r plotAtomHistogram, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+## Wykres rozk³adu liczby atomów
+```{r plotAtomHistogram, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 ggplotly(ggplot(
   Data,
   aes(local_res_atom_non_h_count)
 ) +
   geom_histogram(binwidth = 1, colour="black", fill="#007bff", alpha = 0.5) +
-  xlab("liczba atomÃ³w") + ylab("liczba wystÄ…pieÅ„"))
+  xlab("liczba atomów") + ylab("liczba wyst¹pieñ"))
 ```
 
-## Wykres rozkÅ‚adu liczby elektronÃ³w
-```{r plotElectronHistogram, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+## Wykres rozk³adu liczby elektronów
+```{r plotElectronHistogram, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 ggplotly(ggplot(
   Data,
   aes(dict_atom_non_h_electron_sum)
 ) +
   geom_histogram(binwidth = 5, colour="black", fill="#007bff", alpha = 0.5) +
-  xlab("liczba elektronÃ³w") + ylab("liczba wystÄ…pieÅ„"))
+  xlab("liczba elektronów") + ylab("liczba wyst¹pieñ"))
 ```
 
-## Klasy z najwiÄ™kszÄ… niezgodnoÅ›ciÄ… liczby atomÃ³w i  liczby elektronÃ³w
+## Klasy z najwiêksz¹ niezgodnoœci¹ liczby atomów i  liczby elektronów
 ```{r incompatibilityAtomElectron, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 kable(Data %>%
   select('res_name', 'local_res_atom_non_h_count', 'dict_atom_non_h_count') %>%
@@ -172,10 +172,10 @@ kable(Data %>%
   kable_styling(font_size = 12, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 ```
 
-## RozkÅ‚ad wartoÅ›ci wszystkich kolumn zaczynajÄ…cych siÄ™ od part_01
-```{r part_01, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+## Rozk³ad wartoœci wszystkich kolumn zaczynaj¹cych siê od part_01
+```{r part_01, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 part_01_data <- Data %>% select(starts_with("part_01"))
-
+part_01_data <- head(part_01_data, 50000)
 ggplotly(
 ggplot(stack(part_01_data), aes(x = ind, y = values)) +
   geom_boxplot(coef = 6) +
@@ -190,7 +190,8 @@ ggplot(stack(part_01_data), aes(x = ind, y = values)) +
 ## Regresja
 
 ### Przygotowanie danych
-```{r regressionData, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+```{r regressionData, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
+Data <- head(Data, 50000)
 X <- Data %>% select(-one_of(c(
 "weight_col",
 "title",
@@ -235,11 +236,9 @@ X <- select_if(X, is.numeric)
 X <- na.omit(X)
 
 set.seed(95)
-
-nrow(X)
 ```
 
-### Predykcja liczby elektronÃ³w
+### Predykcja liczby elektronów
 ```{r predictionElectronSum, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 inTrain <- createDataPartition(X$local_res_atom_non_h_electron_sum, p = 0.8, list = FALSE)
 training <- X[inTrain,]
@@ -264,7 +263,7 @@ p <- predict(fit, testing)
 summary(p)
 ```
 
-### Predykcja liczby atomÃ³w
+### Predykcja liczby atomów
 ```{r predictionAtomCount, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 inTrain <- createDataPartition(y = X$local_res_atom_non_h_count, p = 0.8, list = FALSE)
 training <- X[inTrain,]
@@ -289,8 +288,8 @@ p <- predict(fit, testing)
 summary(p)
 ```
 
-## Klasyfikator przewidujÄ…cy wartoÅ›Ä‡ atrybutu res_name
-```{r classificationAtomCount, message=FALSE}
+## Klasyfikator przewiduj¹cy wartoœæ atrybutu res_name
+```{r classificationAtomCount, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
  X <- Data %>% select(c(
     starts_with("part_0"),
     "local_volume",
@@ -316,8 +315,8 @@ inTrain <- createDataPartition(y = X$res_name, p = 0.7, list = FALSE)
 training <- X[inTrain,]
 testing <- X[-inTrain,]
 
- preProcValues <- preProcess(training, method = c("knnImpute","center","scale"))
- train_processed <- predict(preProcValues, training)
+preProcValues <- preProcess(training, method = c("knnImpute","center","scale"))
+train_processed <- predict(preProcValues, training)
 
 ctrl <- trainControl(
   method = "repeatedcv",
@@ -333,7 +332,8 @@ fit = train(res_name ~ .,
 )
 
 fit
-
+```
+```{r classificationAtomCountResult, warning=FALSE, message=FALSE, cache=TRUE, cache.lazy=FALSE}
 p <- predict(fit, newdata = testing)
 confusionMatrix(table(data = p, testing$res_name))
 ```
